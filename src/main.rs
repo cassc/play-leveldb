@@ -1,4 +1,6 @@
 extern crate leveldb;
+use tracing::{info, instrument, Level};
+use tracing_subscriber;
 
 use eyre::Result;
 use leveldb::database::key::Key;
@@ -26,14 +28,26 @@ impl Key for MyData {
     }
 }
 
+#[instrument]
 pub fn get_db<T: Key>(db_path: &str) -> Result<Database<T>> {
+    info!("Trying to get db");
+
     let mut options = Options::new();
     options.create_if_missing = true;
     let db: Database<T> = Database::open(Path::new(db_path), options)?;
     Ok(db)
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
+    let collector = tracing_subscriber::fmt()
+        // filter spans/events with level TRACE or higher.
+        .with_max_level(Level::TRACE)
+        // build but do not install the subscriber.
+        .finish();
+
+    tracing::subscriber::set_global_default(collector)?;
+
     let database = get_db(".database").unwrap();
 
     let write_opts = WriteOptions::new();
@@ -53,4 +67,5 @@ fn main() {
     let data = str::from_utf8(&res).unwrap();
 
     assert_eq!(data, value);
+    Ok(())
 }
